@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Messaging;
 using System.Text;
 using System.Threading;
 
@@ -15,9 +17,15 @@ namespace LogHelper
     public class Log : IDisposable
     {
         //日志对象的缓存队列
-        private static Queue<Msg> msgs;
+        //private static MessageQueue msgs;
         //日志文件保存的路径
         private static string path;
+
+        public static string Path
+        {
+            get { return Log.path; }
+            set { Log.path = value; }
+        }
         //日志写入线程的控制标记
         private static bool state;
         //日志记录的类型
@@ -26,64 +34,37 @@ namespace LogHelper
         private static DateTime TimeSign;
         //日志文件写入流对象
         private static StreamWriter writer;
-        private Thread thread;
-        public int MaxSize { get; set; }
-        public string LogFileName { get; set; }
+        private static Thread thread;
+        public static int MaxSize { get; set; }
+        public static string LogFileName { get; set; }
+        private static string queuePath = ConfigurationManager.AppSettings["QueuePath"];
 
-        /// <summary>
-        /// 创建日志对象的新实例，采用默认当前程序位置作为日志路径和默认的每日日志文件类型记录日志
-        /// </summary>
-        public Log()
-            : this(".\\", LogType.Daily)
-        {
-        }
 
-        /// <summary>
-        /// 创建日志对象的新实例，采用默认当前程序位置作为日志路径并指定日志类型
-        /// </summary>
-        /// <param name="t">日志文件创建方式的枚举</param>
-        public Log(LogType t)
-            : this(".\\", t)
+        static Log()
         {
-        }
-
-        /// <summary>
-        /// 创建日志对象的新实例，根据指定的日志文件路径和指定的日志文件创建类型
-        /// </summary>
-        /// <param name="p">日志文件保存路径</param>
-        /// <param name="t">日志文件创建方式的枚举</param>
-        public Log(string p, LogType t)
-        {
-            if (msgs == null)
-            {
-                state = true;
-                path = p;
-                type = t;
-                msgs = new Queue<Msg>();
-                FileOpen();
-                MaxSize = 10;
-                thread = new Thread(work);
-                thread.IsBackground = true;
-                thread.Start();
-            }
+            state = true;
+            path = ".\\";
+            type = LogType.Daily;
+            MsmqHelper.CreateMq(queuePath, "日志队列");
+            FileOpen();
+            MaxSize = 10;
+            thread = new Thread(Work);
+            thread.IsBackground = true;
+            thread.Start();
         }
 
         //日志文件写入线程执行的方法
-        private void work()
+        private static void Work()
         {
             while (true)
             {
                 //判断队列中是否存在待写入的日志
-                if (msgs.Count > 0)
+                var ms = MsmqHelper.Receive(queuePath);
+                if (ms.Count > 0)
                 {
-                    Msg msg = null;
-                    lock (msgs)
+                    foreach (var msg in ms)
                     {
-                        msg = msgs.Dequeue();
-                    }
-                    if (msg != null)
-                    {
-                        FileWrite(msg);
+                        FileWrite(Msg.Deserialize(msg));
                     }
                 }
                 else
@@ -105,7 +86,7 @@ namespace LogHelper
 
         //根据日志类型获取日志文件名，并同时创建文件到期的时间标记
         //通过判断文件的到期时间标记将决定是否创建新文件。
-        private string GetFilename()
+        private static string GetFilename()
         {
             DateTime now = DateTime.Now;
             string format = "";
@@ -136,7 +117,7 @@ namespace LogHelper
         }
 
         //写入日志文本到文件的方法
-        private void FileWrite(Msg msg)
+        private static void FileWrite(Msg msg)
         {
             try
             {
@@ -174,14 +155,14 @@ namespace LogHelper
         }
 
         //打开文件准备写入
-        private void FileOpen()
+        private static void FileOpen()
         {
             writer = new StreamWriter(path + GetFilename(), true, Encoding.UTF8);
             LogFileName = path + GetFilename();
         }
 
         //关闭打开的日志文件
-        private void FileClose()
+        private static void FileClose()
         {
             if (writer != null)
             {
@@ -196,14 +177,11 @@ namespace LogHelper
         /// 写入新日志，根据指定的日志对象Msg
         /// </summary>
         /// <param name="msg">日志内容对象</param>
-        public void Write(Msg msg)
+        public static void Write(Msg msg)
         {
             if (msg != null)
             {
-                lock (msgs)
-                {
-                    msgs.Enqueue(msg);
-                }
+                MsmqHelper.Send(msg.ToString(), queuePath);
             }
         }
 

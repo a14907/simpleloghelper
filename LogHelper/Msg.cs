@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Web.Script.Serialization;
 
 namespace LogHelper
 {
@@ -77,7 +78,14 @@ namespace LogHelper
 
         public new string ToString()
         {
-            return datetime.ToString() + "\t" + text + "\n";
+            JavaScriptSerializer js = new JavaScriptSerializer();
+            return js.Serialize(this);
+        }
+
+        public static Msg Deserialize(string json)
+        {
+            JavaScriptSerializer js = new JavaScriptSerializer();
+            return js.Deserialize<Msg>(json);
         }
     }
 }
