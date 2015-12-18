@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using LogHelper;
@@ -13,7 +14,9 @@ namespace LogTest
             Console.ReadKey();
             Log.MaxSize = 8;
 
-            for (int i = 0; i < 100000; i++)
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < 1000000; i++)
             {
                 Log.Write(new LogHelper.Msg
                 {
@@ -23,6 +26,8 @@ namespace LogTest
                 });
             }
 
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
 
             Console.WriteLine("OK");
 

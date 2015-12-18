@@ -43,6 +43,11 @@ namespace LogHelper
                                 res.Add(m.Body.ToString());
                             }
                         }
+
+                        for (var i = 0; i < messages.Length; i++)
+                        {
+                            queue.Receive();
+                        }
                     }
                     return res;
                 }
@@ -52,6 +57,7 @@ namespace LogHelper
                 return null;
             }
         }
+
 
         public static MessageQueue CreateMq(string path, string name)
         {

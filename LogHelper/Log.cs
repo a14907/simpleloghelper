@@ -59,28 +59,52 @@ namespace LogHelper
             while (true)
             {
                 //判断队列中是否存在待写入的日志
-                var ms = MsmqHelper.Receive(queuePath);
-                if (ms.Count > 0)
+
+                //001 这种方法更快些
+                using (MessageQueue queue = new MessageQueue(queuePath))
                 {
-                    foreach (var msg in ms)
+                    int count = 0;
+                    foreach (Message m in queue)
                     {
-                        FileWrite(Msg.Deserialize(msg));
+                        count++;
+                        XmlMessageFormatter formate = new XmlMessageFormatter(new Type[] { typeof(string) });
+                        if (m != null)
+                        {
+                            m.Formatter = formate;
+                            FileWrite(Msg.Deserialize(m.Body.ToString()));
+                            queue.Receive();
+                        }
                     }
-                }
-                else
-                {
-                    //判断是否已经发出终止日志并关闭的消息
-                    if (state)
+                    if (count == 0)
                     {
                         Console.WriteLine("无队列数据");
                         Thread.Sleep(1000);
                     }
-                    else
-                    {
-                        thread.Abort();
-                        FileClose();
-                    }
                 }
+
+                ////002 这种方法稍微慢一些
+                //var ms = MsmqHelper.Receive(queuePath);
+                //if (ms.Count > 0)
+                //{
+                //    foreach (var msg in ms)
+                //    {
+                //        FileWrite(Msg.Deserialize(msg));
+                //    }
+                //}
+                //else
+                //{
+                //    //判断是否已经发出终止日志并关闭的消息
+                //    if (state)
+                //    {
+                //        Console.WriteLine("无队列数据");
+                //        Thread.Sleep(1000);
+                //    }
+                //    else
+                //    {
+                //        thread.Abort();
+                //        FileClose();
+                //    }
+                //}
             }
         }
 
